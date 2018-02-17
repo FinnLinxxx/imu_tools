@@ -50,8 +50,17 @@ ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
     constant_dt_ = 0.0;
   if (!nh_private_.getParam ("publish_debug_topics", publish_debug_topics_))
     publish_debug_topics_= false;
+
+  // For ROS Jade, make this default to true.
   if (!nh_private_.getParam ("use_magnetic_field_msg", use_magnetic_field_msg_))
-    use_magnetic_field_msg_ = true;
+  {
+      if (use_mag_)
+      {
+          ROS_WARN("Deprecation Warning: The parameter use_magnetic_field_msg was not set, default is 'false'.");
+          ROS_WARN("Starting with ROS Jade, use_magnetic_field_msg will default to 'true'!");
+      }
+      use_magnetic_field_msg_ = false;
+  }
 
   std::string world_frame;
   // Default should become false for next release
@@ -95,7 +104,7 @@ ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
 
   // **** register publishers
   imu_publisher_ = nh_.advertise<sensor_msgs::Imu>(
-    ros::names::resolve("imu") + "/data", 5);
+    ros::names::resolve("imu") + "/data_filtered", 5);
 
   if (publish_debug_topics_)
   {
@@ -111,7 +120,7 @@ ImuFilterRos::ImuFilterRos(ros::NodeHandle nh, ros::NodeHandle nh_private):
   int queue_size = 5;
 
   imu_subscriber_.reset(new ImuSubscriber(
-    nh_, ros::names::resolve("imu") + "/data_raw", queue_size));
+    nh_, ros::names::resolve("imu") + "/data", queue_size));
 
   if (use_mag_)
   {
@@ -186,12 +195,7 @@ void ImuFilterRos::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)
   if (constant_dt_ > 0.0)
     dt = constant_dt_;
   else
-  {
     dt = (time - last_time_).toSec();
-    if (time.isZero())
-      ROS_WARN_STREAM_THROTTLE(5.0, "The IMU message time stamp is zero, and the parameter constant_dt is not set!" <<
-                                    " The filter will not update the orientation.");
-  }
 
   last_time_ = time;
 
@@ -256,12 +260,7 @@ void ImuFilterRos::imuMagCallback(
   if (constant_dt_ > 0.0)
     dt = constant_dt_;
   else
-  {
     dt = (time - last_time_).toSec();
-    if (time.isZero())
-      ROS_WARN_STREAM_THROTTLE(5.0, "The IMU message time stamp is zero, and the parameter constant_dt is not set!" <<
-                                    " The filter will not update the orientation.");
-  }
 
   last_time_ = time;
 
